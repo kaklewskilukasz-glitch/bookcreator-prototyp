@@ -1,0 +1,8 @@
+{
+  "name": "bookcreator-prototyp",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "extract-youtube": "1.0.476"
+  }
+}
