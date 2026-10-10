@@ -13,10 +13,29 @@ function videoIdFromUrl(value = '') {
   return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';
 }
 
+function clean(value = '') {
+  return String(value).replace(/\s+/g, ' ').trim();
+}
+
+function transcriptText(result) {
+  if (!result) return '';
+  if (typeof result === 'string') return clean(result);
+  if (typeof result.text === 'string' && result.text.trim()) return clean(result.text);
+
+  const segments = Array.isArray(result) ? result :
+    Array.isArray(result.segments) ? result.segments :
+    Array.isArray(result.transcript) ? result.transcript : [];
+
+  return clean(segments.map((item) => {
+    if (typeof item === 'string') return item;
+    return item?.text ?? item?.content ?? item?.utf8 ?? '';
+  }).filter(Boolean).join(' '));
+}
+
 async function tryTranscript(input, options) {
   try {
     const result = await getTranscript(input, options);
-    const text = typeof result?.text === 'string' ? result.text.replace(/\s+/g, ' ').trim() : '';
+    const text = transcriptText(result);
     if (text) return { ok: true, result, text };
     return { ok: false, error: result?.available === false ? 'Film nie udostępnia transkrypcji.' : 'YouTube zwrócił pustą transkrypcję.' };
   } catch (e) {
@@ -32,7 +51,6 @@ export default async function handler(request) {
     const videoId = videoIdFromUrl((url || '').trim());
     if (!videoId) return Response.json({ error: 'Nieprawidłowy link YouTube.' }, { status: 400 });
 
-    // Najpierw próbujemy preferowanych języków, potem automatyczny wybór biblioteki.
     const attempts = [
       { languages: ['pl', 'en'] },
       { languages: ['en', 'pl'] },
