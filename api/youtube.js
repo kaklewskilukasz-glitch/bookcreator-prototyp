@@ -6,46 +6,57 @@ function videoIdFromUrl(value = '') {
     if (u.hostname === 'youtu.be') return u.pathname.split('/').filter(Boolean)[0] || '';
     if (u.hostname.endsWith('youtube.com')) {
       if (u.pathname === '/watch') return u.searchParams.get('v') || '';
-      const m = u.pathname.match(/^\/(?:shorts|embed)\/([^/?]+)/);
+      const m = u.pathname.match(/^\/(?:shorts|embed|live)\/([^/?]+)/);
       return m?.[1] || '';
     }
   } catch {}
   return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';
 }
 
+async function tryTranscript(input, options) {
+  try {
+    const result = await getTranscript(input, options);
+    const text = typeof result?.text === 'string' ? result.text.replace(/\s+/g, ' ').trim() : '';
+    if (text) return { ok: true, result, text };
+    return { ok: false, error: result?.available === false ? 'Film nie udostępnia transkrypcji.' : 'YouTube zwrócił pustą transkrypcję.' };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
 export default async function handler(request) {
   if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
+
   try {
     const { url } = await request.json();
-    const videoId = videoIdFromUrl(url || '');
+    const videoId = videoIdFromUrl((url || '').trim());
     if (!videoId) return Response.json({ error: 'Nieprawidłowy link YouTube.' }, { status: 400 });
 
-    let result;
-    let firstError = '';
-    try {
-      result = await getTranscript(videoId, { languages: ['pl', 'en'] });
-    } catch (e) {
-      firstError = e?.message || String(e);
-      try {
-        result = await getTranscript(videoId);
-      } catch (fallbackError) {
-        const detail = fallbackError?.message || firstError || 'nieznany błąd biblioteki';
-        console.error('YouTube transcript failed', { videoId, firstError, detail });
+    // Najpierw próbujemy preferowanych języków, potem automatyczny wybór biblioteki.
+    const attempts = [
+      { languages: ['pl', 'en'] },
+      { languages: ['en', 'pl'] },
+      undefined
+    ];
+
+    let lastError = '';
+    for (const options of attempts) {
+      const attempt = await tryTranscript(videoId, options);
+      if (attempt.ok) {
         return Response.json({
-          error: 'Nie udało się odczytać transkrypcji YouTube: ' + detail,
-          videoId
-        }, { status: 502 });
+          videoId,
+          language: attempt.result?.language || '',
+          text: attempt.text.slice(0, 60000)
+        });
       }
+      lastError = attempt.error || lastError;
     }
 
-    const text = (result?.text || '').replace(/\s+/g, ' ').trim();
-    if (!text) return Response.json({ error: 'YouTube zwrócił pustą transkrypcję.', videoId }, { status: 404 });
-
+    console.error('YouTube transcript failed', { videoId, error: lastError });
     return Response.json({
-      videoId,
-      language: result?.language || '',
-      text: text.slice(0, 60000)
-    });
+      error: 'Nie udało się odczytać transkrypcji YouTube: ' + (lastError || 'YouTube zablokował pobranie napisów albo film nie ma dostępnej transkrypcji.'),
+      videoId
+    }, { status: 502 });
   } catch (e) {
     console.error('YouTube endpoint error', e);
     return Response.json({ error: 'Nie udało się pobrać transkrypcji YouTube: ' + (e?.message || 'nieznany błąd') }, { status: 502 });
