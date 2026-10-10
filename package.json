@@ -1,5 +1,10 @@
 {
   "name": "bookcreator-prototyp",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "bgutils-js": "^4.0.3",
+    "jsdom": "^30.0.0"
+  }
 }
