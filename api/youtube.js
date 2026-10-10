@@ -13,98 +13,64 @@ function videoIdFromUrl(value = '') {
   return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';
 }
 
-function clean(value = '') {
-  return String(value).replace(/\s+/g, ' ').trim();
-}
-
+function clean(value = '') { return String(value).replace(/\s+/g, ' ').trim(); }
 function transcriptText(data) {
-  if (typeof data?.content === 'string') return clean(data.content);
-  if (Array.isArray(data?.content)) return clean(data.content.map(x => typeof x === 'string' ? x : x?.text || '').filter(Boolean).join(' '));
-  if (typeof data?.text === 'string') return clean(data.text);
-  if (typeof data?.data?.content === 'string') return clean(data.data.content);
-  if (Array.isArray(data?.data?.content)) return clean(data.data.content.map(x => typeof x === 'string' ? x : x?.text || '').filter(Boolean).join(' '));
-  if (typeof data?.data?.text === 'string') return clean(data.data.text);
+  const root = data?.data || data || {};
+  if (typeof root.content === 'string') return clean(root.content);
+  if (Array.isArray(root.content)) return clean(root.content.map(x => typeof x === 'string' ? x : x?.text || '').filter(Boolean).join(' '));
+  if (typeof root.text === 'string') return clean(root.text);
   return '';
 }
-
 function detailFrom(data, fallback) {
-  if (typeof data?.message === 'string') return data.message;
-  if (typeof data?.details === 'string') return data.details;
-  if (typeof data?.error === 'string') return data.error;
-  if (typeof data?.error?.message === 'string') return data.error.message;
-  return fallback;
+  return data?.message || data?.details || (typeof data?.error === 'string' ? data.error : data?.error?.message) || fallback;
 }
-
-async function supadataJson(url, apiKey) {
-  const response = await fetch(url, {
-    headers: { 'x-api-key': apiKey, accept: 'application/json' }
-  });
+async function getJson(url, apiKey) {
+  const response = await fetch(url, { headers: { 'x-api-key': apiKey, accept: 'application/json' } });
   const raw = await response.text();
   let data = {};
   try { data = raw ? JSON.parse(raw) : {}; }
-  catch {
-    throw new Error(`Supadata zwróciła odpowiedź inną niż JSON (HTTP ${response.status}).`);
-  }
+  catch { throw new Error(`Supadata zwróciła odpowiedź inną niż JSON (HTTP ${response.status}).`); }
   return { response, data };
 }
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export default async function handler(request) {
   if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
-
   try {
     const { url } = await request.json();
-    const rawUrl = String(url || '').trim();
-    const videoId = videoIdFromUrl(rawUrl);
+    const videoId = videoIdFromUrl(String(url || '').trim());
     if (!videoId) return Response.json({ error: 'Nieprawidłowy link YouTube.' }, { status: 400 });
-
     const apiKey = process.env.SUPADATA_API_KEY;
     if (!apiKey) return Response.json({ error: 'Brak SUPADATA_API_KEY w Vercel.' }, { status: 500 });
 
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const params = new URLSearchParams({ url: youtubeUrl, lang: 'pl', text: 'true', mode: 'auto' });
-    const startUrl = `https://api.supadata.ai/v1/transcript?${params.toString()}`;
-    let { response, data } = await supadataJson(startUrl, apiKey);
+    // Current Supadata endpoint. lang is intentionally supplied because it also avoids
+    // false transcript-unavailable responses reported for non-default caption languages.
+    const params = new URLSearchParams({ url: youtubeUrl, lang: 'pl', text: 'true' });
+    let { response, data } = await getJson(`https://api.supadata.ai/v1/transcript?${params}`, apiKey);
 
-    if (!response.ok && response.status !== 202) {
-      return Response.json({ error: `Nie udało się odczytać transkrypcji YouTube: ${detailFrom(data, `HTTP ${response.status}`)}`, videoId }, { status: response.status });
-    }
-
-    // Supadata returns a jobId when a transcript must be generated asynchronously.
     if (response.status === 202 || data?.jobId) {
       const jobId = data?.jobId;
-      if (!jobId) return Response.json({ error: 'Supadata rozpoczęła zadanie, ale nie zwróciła jobId.', videoId }, { status: 502 });
-
+      if (!jobId) return Response.json({ error: 'Supadata rozpoczęła transkrypcję, ale nie zwróciła jobId.', videoId }, { status: 502 });
       const resultUrl = `https://api.supadata.ai/v1/transcript/${encodeURIComponent(jobId)}`;
-      const deadline = Date.now() + 45000;
-
+      const deadline = Date.now() + 50000;
       while (Date.now() < deadline) {
-        await sleep(1000);
-        ({ response, data } = await supadataJson(resultUrl, apiKey));
-
-        if (!response.ok) {
-          return Response.json({ error: `Błąd pobierania wygenerowanej transkrypcji: ${detailFrom(data, `HTTP ${response.status}`)}`, videoId }, { status: response.status });
-        }
-
-        const status = String(data?.status || '').toLowerCase();
-        if (status === 'failed') {
-          return Response.json({ error: `Generowanie transkrypcji nie powiodło się: ${detailFrom(data, 'Supadata zgłosiła błąd zadania.')}`, videoId }, { status: 502 });
-        }
-
+        await sleep(1500);
+        ({ response, data } = await getJson(resultUrl, apiKey));
+        if (response.status === 202) continue;
+        if (!response.ok) return Response.json({ error: `Błąd transkrypcji YouTube: ${detailFrom(data, `HTTP ${response.status}`)}`, videoId }, { status: response.status });
+        const status = String(data?.status || data?.data?.status || '').toLowerCase();
+        if (status === 'queued' || status === 'processing' || status === 'pending') continue;
+        if (status === 'failed') return Response.json({ error: `Generowanie transkrypcji nie powiodło się: ${detailFrom(data, 'błąd zadania')}`, videoId }, { status: 502 });
         const text = transcriptText(data);
-        if (status === 'completed' || text) {
-          if (!text) return Response.json({ error: 'Supadata zakończyła zadanie, ale nie zwróciła tekstu transkrypcji.', videoId }, { status: 404 });
-          return Response.json({ videoId, language: data?.lang || data?.data?.lang || '', text: text.slice(0, 60000) });
-        }
+        if (text) return Response.json({ videoId, language: data?.lang || data?.data?.lang || '', text: text.slice(0, 60000) });
       }
-
-      return Response.json({ error: 'Transkrypcja jest generowana dłużej niż 45 sekund. Spróbuj ponownie za chwilę.', videoId }, { status: 504 });
+      return Response.json({ error: 'Transkrypcja nadal się generuje. Spróbuj ponownie za chwilę.', videoId }, { status: 504 });
     }
 
+    if (!response.ok) return Response.json({ error: `Nie udało się odczytać transkrypcji YouTube: ${detailFrom(data, `HTTP ${response.status}`)}`, videoId }, { status: response.status });
     const text = transcriptText(data);
     if (!text) return Response.json({ error: 'Supadata nie zwróciła tekstu transkrypcji dla tego filmu.', videoId }, { status: 404 });
-
     return Response.json({ videoId, language: data?.lang || '', text: text.slice(0, 60000) });
   } catch (e) {
     console.error('YouTube endpoint error', e);
