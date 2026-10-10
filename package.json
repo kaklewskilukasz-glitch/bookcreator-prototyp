@@ -4,7 +4,6 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "dependencies": {
-    "bgutils-js": "^4.0.3",
-    "jsdom": "^30.0.0"
+    "get-youtube-transcript": "^1.0.0"
   }
 }
