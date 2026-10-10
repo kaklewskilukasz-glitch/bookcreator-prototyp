@@ -1,0 +1,25 @@
+(function(){
+  function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function mount(){
+    const editor=document.getElementById('editor'), content=document.getElementById('bookContent');
+    if(!editor||!content||document.getElementById('coverTools'))return;
+    const box=document.createElement('div');box.id='coverTools';box.className='materialbox';
+    box.innerHTML='<h2>Okładka AI</h2><p class="hint">AI stworzy grafikę na podstawie tytułu i tematu książki.</p><button id="coverBtn" class="secondary">🎨 Wygeneruj okładkę AI</button><div id="coverInfo" class="saveinfo"></div><div id="coverPreview" style="display:none;position:relative;max-width:360px;margin:14px auto;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px #0002"><img id="coverImage" style="display:block;width:100%;aspect-ratio:2/3;object-fit:cover"><div style="position:absolute;left:0;right:0;top:0;padding:28px 22px 55px;background:linear-gradient(#000b,transparent);color:white;text-align:center;text-shadow:0 2px 8px #000"><div id="coverTitle" style="font-size:28px;font-weight:900;line-height:1.05"></div></div></div><button id="coverDownload" class="secondary" style="display:none">⬇️ Zapisz okładkę PNG</button>';
+    editor.insertBefore(box,content);
+    coverBtn.onclick=generateCover;coverDownload.onclick=downloadCover;
+  }
+  async function generateCover(){
+    const btn=document.getElementById('coverBtn'),info=document.getElementById('coverInfo');btn.disabled=true;btn.textContent='AI tworzy okładkę…';info.textContent='';
+    try{
+      const style=document.querySelector('.choice.selected b')?.textContent||'Prosty i naturalny';
+      const r=await fetch('/api/cover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:bookTitle.value,topic:topic.value,style,language:language.value})});
+      const d=await r.json();if(!r.ok)throw Error(typeof d.error==='string'?d.error:'Błąd AI');
+      coverImage.src=d.image;coverTitle.textContent=bookTitle.value||'Bez tytułu';coverPreview.style.display='block';coverDownload.style.display='block';info.textContent='✓ Okładka wygenerowana.';
+    }catch(e){info.textContent='❌ '+(e.message||e)}finally{btn.disabled=false;btn.textContent='🎨 Wygeneruj inną okładkę AI'}
+  }
+  async function downloadCover(){
+    const img=document.getElementById('coverImage');if(!img.src)return;const c=document.createElement('canvas');c.width=1024;c.height=1536;const x=c.getContext('2d');
+    const im=new Image();im.onload=()=>{x.drawImage(im,0,0,c.width,c.height);x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,c.width,360);x.fillStyle='#fff';x.textAlign='center';x.font='bold 76px Arial';const title=bookTitle.value||'Bez tytułu',words=title.split(/\s+/);let lines=[],line='';for(const w of words){let test=(line+' '+w).trim();if(x.measureText(test).width>880&&line){lines.push(line);line=w}else line=test}if(line)lines.push(line);lines.slice(0,4).forEach((l,i)=>x.fillText(l,512,115+i*86));const a=document.createElement('a');a.download=(title.replace(/[\\/:*?"<>|]+/g,'-')||'okladka')+'-okladka.png';a.href=c.toDataURL('image/png');a.click()};im.src=img.src;
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();
