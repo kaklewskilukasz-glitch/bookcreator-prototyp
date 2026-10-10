@@ -18,38 +18,40 @@ function transcriptText(data = {}) {
   if (typeof data.text === 'string') return clean(data.text);
   return '';
 }
+function json(res, status, body) {
+  res.status(status).setHeader('Content-Type', 'application/json; charset=utf-8').send(JSON.stringify(body));
+}
 
-export default async function handler(request) {
-  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   try {
-    const { url } = await request.json();
-    const videoId = videoIdFromUrl(String(url || '').trim());
-    if (!videoId) return Response.json({ error: 'Nieprawidłowy link YouTube.' }, { status: 400 });
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const videoId = videoIdFromUrl(String(body.url || '').trim());
+    if (!videoId) return json(res, 400, { error: 'Nieprawidłowy link YouTube.' });
+
     const apiKey = process.env.SUPADATA_API_KEY;
-    if (!apiKey) return Response.json({ error: 'Brak SUPADATA_API_KEY w Vercel.' }, { status: 500 });
+    if (!apiKey) return json(res, 500, { error: 'Brak SUPADATA_API_KEY w Vercel.' });
 
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const params = new URLSearchParams({ url: youtubeUrl, lang: 'pl', text: 'true' });
-    const response = await fetch(`https://api.supadata.ai/v1/transcript?${params.toString()}`, {
-      method: 'GET',
-      headers: { 'x-api-key': apiKey, 'accept': 'application/json' }
+    const upstream = await fetch(`https://api.supadata.ai/v1/transcript?${params.toString()}`, {
+      headers: { 'x-api-key': apiKey, accept: 'application/json' }
     });
-    const raw = await response.text();
-    let data;
+    const raw = await upstream.text();
+    let data = {};
     try { data = raw ? JSON.parse(raw) : {}; }
-    catch {
-      return Response.json({ error: `Supadata zwróciła nieprawidłową odpowiedź HTTP ${response.status}.` }, { status: 502 });
-    }
+    catch { return json(res, 502, { error: `Supadata zwróciła nieprawidłową odpowiedź HTTP ${upstream.status}.` }); }
 
-    if (!response.ok) {
-      const detail = data?.message || data?.details || data?.error || `HTTP ${response.status}`;
-      return Response.json({ error: `Nie udało się pobrać transkrypcji: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`, videoId }, { status: response.status });
+    if (!upstream.ok) {
+      const detail = data?.message || data?.details || data?.error || `HTTP ${upstream.status}`;
+      return json(res, upstream.status, { error: `Nie udało się pobrać transkrypcji: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`, videoId });
     }
 
     const text = transcriptText(data);
-    if (!text) return Response.json({ error: 'Supadata nie zwróciła tekstu transkrypcji dla tego filmu.', videoId }, { status: 404 });
-    return Response.json({ videoId, language: data?.lang || '', text: text.slice(0, 60000) });
+    if (!text) return json(res, 404, { error: 'Supadata nie zwróciła tekstu transkrypcji dla tego filmu.', videoId });
+    return json(res, 200, { videoId, language: data?.lang || '', text: text.slice(0, 60000) });
   } catch (e) {
-    return Response.json({ error: 'Nie udało się pobrać transkrypcji YouTube: ' + (e?.message || 'nieznany błąd') }, { status: 502 });
+    console.error('youtube function error', e);
+    return json(res, 502, { error: 'Nie udało się pobrać transkrypcji YouTube: ' + (e?.message || 'nieznany błąd') });
   }
 }
