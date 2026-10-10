@@ -21,14 +21,25 @@ export default async function handler(request) {
     if (!videoId) return Response.json({ error: 'Nieprawidłowy link YouTube.' }, { status: 400 });
 
     let result;
+    let firstError = '';
     try {
       result = await getTranscript(videoId, { languages: ['pl', 'en'] });
-    } catch {
-      result = await getTranscript(videoId);
+    } catch (e) {
+      firstError = e?.message || String(e);
+      try {
+        result = await getTranscript(videoId);
+      } catch (fallbackError) {
+        const detail = fallbackError?.message || firstError || 'nieznany błąd biblioteki';
+        console.error('YouTube transcript failed', { videoId, firstError, detail });
+        return Response.json({
+          error: 'Nie udało się odczytać transkrypcji YouTube: ' + detail,
+          videoId
+        }, { status: 502 });
+      }
     }
 
     const text = (result?.text || '').replace(/\s+/g, ' ').trim();
-    if (!text) return Response.json({ error: 'Ten film nie ma dostępnej transkrypcji.' }, { status: 404 });
+    if (!text) return Response.json({ error: 'YouTube zwrócił pustą transkrypcję.', videoId }, { status: 404 });
 
     return Response.json({
       videoId,
@@ -36,6 +47,7 @@ export default async function handler(request) {
       text: text.slice(0, 60000)
     });
   } catch (e) {
+    console.error('YouTube endpoint error', e);
     return Response.json({ error: 'Nie udało się pobrać transkrypcji YouTube: ' + (e?.message || 'nieznany błąd') }, { status: 502 });
   }
 }
