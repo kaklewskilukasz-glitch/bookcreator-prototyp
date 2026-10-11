@@ -1,23 +1,18 @@
 (function(){
 const SUPABASE_URL='https://ocfxjlxxbrwkvkxqzqod.supabase.co';
 const SUPABASE_KEY='sb_publishable_vQhkkzzMtEKw_oFTto4s6w_2wYlVFJD';
-let sb=null;
-function mount(){
- if(!window.supabase?.createClient)return setTimeout(mount,100);
- sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
- const header=document.querySelector('header');if(!header||document.getElementById('authBox'))return;
- const box=document.createElement('div');box.id='authBox';box.style.cssText='display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end;font-size:12px';
- box.innerHTML='<span id="authState">Tryb testowy</span><button id="loginBtn" style="border:0;border-radius:9px;padding:7px 10px">Zaloguj</button><button id="logoutBtn" style="display:none;border:0;border-radius:9px;padding:7px 10px">Wyloguj</button>';
- header.appendChild(box);loginBtn.onclick=authDialog;logoutBtn.onclick=async()=>{await sb.auth.signOut();await refresh()};
- sb.auth.onAuthStateChange(()=>refresh());refresh();
-}
-async function refresh(){const {data:{user}}=await sb.auth.getUser();authState.textContent=user?user.email:'Tryb testowy';loginBtn.style.display=user?'none':'inline-block';logoutBtn.style.display=user?'inline-block':'none'}
-async function authDialog(){
- const email=prompt('E-mail testowego konta:');if(!email)return;
- const password=prompt('Hasło (minimum 6 znaków):');if(!password)return;
- let {error}=await sb.auth.signInWithPassword({email,password});
- if(error){const r=await sb.auth.signUp({email,password});error=r.error;if(!error&&!r.data.session){alert('Konto utworzone. Sprawdź e-mail i potwierdź konto, a potem kliknij Zaloguj.');return}}
- if(error)return alert('Nie udało się zalogować: '+error.message);await refresh();alert('Zalogowano. To jest nadal tryb testowy.');
-}
+let sb=null,user=null,cloudBusy=false;
+window.bookCreatorSupabase=()=>sb;window.bookCreatorUser=()=>user;
+function localBooks(){try{return JSON.parse(localStorage.getItem('bookcreator_books')||'[]')}catch{return[]}}
+function putLocal(books){localStorage.setItem('bookcreator_books',JSON.stringify(books))}
+function uuid(){return crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&3|8);return v.toString(16)})}
+function ensureCloudIds(){const books=localBooks();let changed=false;for(const b of books){if(!b.cloudId){b.cloudId=uuid();changed=true}}if(changed)putLocal(books);return books}
+async function pushBook(b){if(!user||!b)return;const cloudId=b.cloudId||uuid();b.cloudId=cloudId;await sb.from('books').upsert({id:cloudId,user_id:user.id,title:b.title||'Bez tytułu',author:b.author||document.getElementById('bookAuthor')?.value||'',data:{...b,cloudId},updated_at:b.updatedAt||new Date().toISOString()},{onConflict:'id'})}
+async function syncCloud(){if(!user||cloudBusy)return;cloudBusy=true;try{let books=ensureCloudIds();for(const b of books)await pushBook(b);const {data,error}=await sb.from('books').select('id,title,author,data,updated_at').order('updated_at',{ascending:false});if(error)throw error;const byCloud=new Map(books.map(b=>[b.cloudId,b]));for(const row of data||[]){const incoming={...(row.data||{}),cloudId:row.id,title:row.title||row.data?.title||'Bez tytułu',author:row.author||row.data?.author||'',updatedAt:row.updated_at||row.data?.updatedAt};const old=byCloud.get(row.id);if(!old){books.push(incoming);byCloud.set(row.id,incoming)}else if(new Date(incoming.updatedAt||0)>new Date(old.updatedAt||0)){Object.assign(old,incoming)}}putLocal(books.sort((a,b)=>new Date(b.updatedAt||0)-new Date(a.updatedAt||0)));window.renderSavedBooks?.();setCloudState('☁️ Chmura zsynchronizowana')}catch(e){console.error(e);setCloudState('⚠️ Błąd synchronizacji chmury')}finally{cloudBusy=false}}
+function setCloudState(t){const el=document.getElementById('cloudState');if(el)el.textContent=t}
+function patchStorage(){if(window.__cloudStoragePatched||!window.saveBook)return;window.__cloudStoragePatched=true;const oldSave=window.saveBook;window.saveBook=async function(auto=false){await oldSave(auto);if(user){const books=ensureCloudIds(),b=books.find(x=>x.id===window.currentBookId||x.id===currentBookId);if(b){await pushBook(b);putLocal(books);setCloudState('☁️ Zapisano w chmurze')}}};const oldDelete=window.deleteBook;window.deleteBook=function(id){const b=localBooks().find(x=>x.id===id),cloudId=b?.cloudId;oldDelete(id);if(user&&cloudId)sb.from('books').delete().eq('id',cloudId).then(()=>setCloudState('☁️ Usunięto z chmury'))};}
+function mount(){if(!window.supabase?.createClient)return setTimeout(mount,100);sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);const header=document.querySelector('header');if(!header||document.getElementById('authBox'))return;const box=document.createElement('div');box.id='authBox';box.style.cssText='display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end;font-size:12px';box.innerHTML='<span id="cloudState">Tryb testowy</span><span id="authState"></span><button id="loginBtn" style="border:0;border-radius:9px;padding:7px 10px">Zaloguj</button><button id="logoutBtn" style="display:none;border:0;border-radius:9px;padding:7px 10px">Wyloguj</button>';header.appendChild(box);loginBtn.onclick=authDialog;logoutBtn.onclick=async()=>{await sb.auth.signOut();await refresh()};sb.auth.onAuthStateChange(()=>refresh());patchStorage();refresh()}
+async function refresh(){const {data:{user:u}}=await sb.auth.getUser();user=u||null;authState.textContent=user?user.email:'';loginBtn.style.display=user?'none':'inline-block';logoutBtn.style.display=user?'inline-block':'none';setCloudState(user?'☁️ Synchronizacja…':'Tryb testowy');if(user)await syncCloud()}
+async function authDialog(){const email=prompt('E-mail testowego konta:');if(!email)return;const password=prompt('Hasło (minimum 6 znaków):');if(!password)return;let {error}=await sb.auth.signInWithPassword({email,password});if(error){const r=await sb.auth.signUp({email,password});error=r.error;if(!error&&!r.data.session){alert('Konto utworzone. Sprawdź e-mail i potwierdź konto, a potem kliknij Zaloguj.');return}}if(error)return alert('Nie udało się zalogować: '+error.message);await refresh();alert('Zalogowano. Książki są synchronizowane z chmurą. To nadal tryb testowy.')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
