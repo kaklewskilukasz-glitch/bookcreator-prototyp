@@ -1,4 +1,5 @@
 (function(){
+  const i18nScript=document.createElement('script');i18nScript.src='/i18n.js';document.head.appendChild(i18nScript);
   const pwaScript=document.createElement('script');pwaScript.src='/pwa.js';document.head.appendChild(pwaScript);
   const outlineScript=document.createElement('script');outlineScript.src='/outline-controls.js';document.head.appendChild(outlineScript);
   const COVER_KEY='bookcreator_covers_v2';
