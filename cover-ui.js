@@ -1,6 +1,7 @@
 (function(){
   const i18nScript=document.createElement('script');i18nScript.src='/i18n.js';document.head.appendChild(i18nScript);
   const pwaScript=document.createElement('script');pwaScript.src='/pwa.js';document.head.appendChild(pwaScript);
+  const printScript=document.createElement('script');printScript.src='/print-export.js';document.head.appendChild(printScript);
   const outlineScript=document.createElement('script');outlineScript.src='/outline-controls.js';document.head.appendChild(outlineScript);
   const COVER_KEY='bookcreator_covers_v2';
   function author(){return document.getElementById('bookAuthor')?.value?.trim()||''}
