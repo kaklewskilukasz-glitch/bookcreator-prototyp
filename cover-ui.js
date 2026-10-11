@@ -1,4 +1,5 @@
 (function(){
+  const outlineScript=document.createElement('script');outlineScript.src='/outline-controls.js';document.head.appendChild(outlineScript);
   const COVER_KEY='bookcreator_covers_v2';
   function author(){return document.getElementById('bookAuthor')?.value?.trim()||''}
   function addAuthorField(){const setup=document.getElementById('setup'),title=document.getElementById('bookTitle');if(!setup||!title||document.getElementById('bookAuthor'))return;const label=document.createElement('label');label.textContent='Autor';const input=document.createElement('input');input.id='bookAuthor';input.placeholder='Imię i nazwisko lub pseudonim';title.insertAdjacentElement('afterend',input);input.insertAdjacentElement('beforebegin',label)}
