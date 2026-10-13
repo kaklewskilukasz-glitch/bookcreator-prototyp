@@ -1,4 +1,5 @@
 (function(){
+  const generationScript=document.createElement('script');generationScript.src='/generation-client.js';document.head.appendChild(generationScript);
   const i18nScript=document.createElement('script');i18nScript.src='/i18n.js';document.head.appendChild(i18nScript);
   const pwaScript=document.createElement('script');pwaScript.src='/pwa.js';document.head.appendChild(pwaScript);
   const printScript=document.createElement('script');printScript.src='/print-export.js';document.head.appendChild(printScript);
