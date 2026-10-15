@@ -1,0 +1,9 @@
+{
+  "name": "bookcreator-prototyp",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "get-youtube-transcript": "^1.0.0"
+  }
+}
