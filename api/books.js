@@ -22,8 +22,8 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { id, title, content, html } = req.body || {};
       const row = { user_id: user.id, title: (title || 'Bez tytułu').trim(), data: { content: content || '', html: html || '' }, updated_at: new Date().toISOString() };
-      let q = id ? sb.from('books').update(row).eq('id', id).select('id,title,data,updated_at').single()
-                 : sb.from('books').insert(row).select('id,title,data,updated_at').single();
+      const q = id ? sb.from('books').update(row).eq('id', id).select('id,title,data,updated_at').single()
+                   : sb.from('books').insert(row).select('id,title,data,updated_at').single();
       const { data, error } = await q;
       if (error) throw error;
       return res.status(200).json({ book: data });
