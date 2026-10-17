@@ -2,6 +2,12 @@ export default {async fetch(request){if(request.method!=='POST')return Response.
 
 Sprawdź: 1) czy wskazany problem faktycznie rozwiązano, 2) czy zachowano głos autora, sens, fakty i emocje, 3) czy nie powstały nowe powtórzenia, sprzeczności, sztuczne brzmienie AI albo utrata informacji, 4) czy wersja PO jest rzeczywiście lepsza. Nie nagradzaj zmiany tylko dlatego, że została wykonana. Jeśli jest neutralna lub gorsza, powiedz to.
 
+SZCZEGÓLNA ZASADA DLA URWANEGO/BRAKUJĄCEGO TEKSTU:
+- nie wymagaj „odzyskania oryginału”, bo utraconego tekstu nie da się wiarygodnie odzyskać z samego rozdziału;
+- jeśli problem dotyczy urwanego zakończenia lub placeholdera oznaczającego brak tekstu, uznaj problem za rozwiązany wtedy, gdy wersja PO usuwa znacznik braku i tworzy nowe, spójne zakończenie wynikające z istniejącego kontekstu;
+- odrzuć poprawkę, jeśli placeholder nadal pozostał, zakończenie jest generyczne, wprowadza nowe niepoparte fakty/wątki albo nie pasuje do głosu autora;
+- w werdykcie używaj sformułowania „zrekonstruowano zakończenie”, a nie „odzyskano brakujący oryginał”.
+
 Język odpowiedzi: ${language||'Polski'}.
 UWAGA REDAKCYJNA: ${JSON.stringify(issue||{})}
 PRZED:\n${String(before||'').slice(0,50000)}
