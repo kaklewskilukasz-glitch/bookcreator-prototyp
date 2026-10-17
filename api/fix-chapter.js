@@ -18,7 +18,17 @@ ZASADY KRYTYCZNE:
 - nie powtarzaj akapitów;
 - zachowaj strukturę i kolejność rozdziału, chyba że zaakceptowana uwaga wprost wymaga lokalnego przesunięcia;
 - przed zwróceniem tekstu wewnętrznie sprawdź: czy problem został usunięty, czy głos autora pozostał, czy nic ważnego nie zniknęło i czy nie powstał nowy problem;
-- zwróć WYŁĄCZNIE pełny tekst poprawionego rozdziału, bez komentarzy i bez opisu zmian.
+
+SPECJALNA ZASADA DLA BRAKUJĄCEGO / URWANEGO TEKSTU:
+- jeśli uwaga mówi, że rozdział jest urwany, kończy się znacznikiem typu „brak tekstu”, „tekst urwany”, „ciąg dalszy”, wielokropkiem sygnalizującym ucięcie albo innym placeholderem, NIE WOLNO pozostawić znacznika bez zmian;
+- nie możesz odzyskać dokładnie utraconego oryginału, więc NIE udawaj, że go odzyskujesz;
+- zamiast tego zrekonstruuj NOWE, spójne zakończenie wyłącznie na podstawie treści tego rozdziału, jego tonu, argumentacji i wcześniejszych akapitów;
+- usuń placeholder/brakujący znacznik i domknij myśl, puentę oraz przejście w sposób naturalny;
+- nie dodawaj nowych faktów ani nowych wątków, których rozdział wcześniej nie przygotował;
+- jeśli kontekst nie pozwala bezpiecznie stworzyć konkretnego faktu, zakończ na poziomie refleksji/puenty, bez zmyślania;
+- rezultat musi realnie różnić się od wersji źródłowej w miejscu usterki i ma być kompletnym, czytelnym rozdziałem.
+
+Zwróć WYŁĄCZNIE pełny tekst poprawionego rozdziału, bez komentarzy i bez opisu zmian.
 
 Język: ${language||'Polski'}.
 
