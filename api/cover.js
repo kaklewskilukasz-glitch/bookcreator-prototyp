@@ -14,14 +14,23 @@ Visual direction: sophisticated contemporary publishing design suitable for Amaz
 
 CRITICAL: artwork/background ONLY. Do NOT render the book title. Do NOT render any words, letters, numbers, typography, captions, logos, watermarks, signatures, labels or readable writing anywhere in the image.`;
       const r = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({ model: 'gpt-image-1', prompt, size: '1024x1536', quality: 'high', output_format: 'png' })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: 'gpt-image-2.5-flare',
+          prompt,
+          size: '1024x1536',
+          quality: 'high',
+          output_format: 'png'
+        })
       });
       const data = await r.json();
       if (!r.ok) return Response.json({ error: data?.error?.message || 'Błąd generowania okładki' }, { status: r.status });
       const b64 = data?.data?.[0]?.b64_json;
       if (!b64) throw Error('AI nie zwróciło obrazu okładki.');
       return Response.json({ image: `data:image/png;base64,${b64}` });
-    } catch (e) { return Response.json({ error: e?.message || 'Nieznany błąd' }, { status: 500 }); }
+    } catch (e) {
+      return Response.json({ error: e?.message || 'Nieznany błąd' }, { status: 500 });
+    }
   }
 };
